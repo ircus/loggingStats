@@ -4,7 +4,7 @@ library(ggplot2)
 load("for_data_products.RData", envir=environment())
 dt1 = aggregate(dt$userLabel, by = list(dt$date), FUN = length)
 names(dt1) = c("date", "visits")
-dt1$date = as.numeric(dt1$date) + 3
+dt1$date = as.numeric(dt1$date)
 fit = lm(dt1$visits ~ sin(2*pi/7*dt1$date) + cos(2*pi/7*dt1$date))
 a = fit$coefficients[1]
 b = fit$coefficients[2]
