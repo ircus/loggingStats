@@ -1,0 +1,174 @@
+Data Analytics with R
+========================================================
+author: ircus
+date: May 14, 2016
+
+Data Analysis Workflow
+========================================================
+
+* Getting data
+
+<img src="postgresql.png" height="60px" /> 
+<img src="mysql.png" height="60px" /> 
+<img src="mongodb.png" height="60px" /> 
+<img src="neo4j.png" height="50px" /> 
+<img src="hbase.png" height="60px" /> 
+...
+
+* Analysis
+
+```{r, echo=FALSE, fig.height=1.5, fig.width=8, message=FALSE, cache=TRUE}
+suppressWarnings(library(cluster))
+dst   <- daisy(iris, metric = c("gower"), stand = FALSE)
+hca   <- hclust(dst, method = "average")
+k     <- 3
+clust <- cutree(hca,k=k)  # k clusters
+
+suppressWarnings(library(ggplot2))
+suppressWarnings(library(ggdendro))     # for dendro_data(...)
+dendr    <- dendro_data(hca, type="rectangle") # convert for ggplot
+clust.df <- data.frame(label=rownames(iris), cluster=factor(clust))
+dendr[["labels"]]   <- merge(dendr[["labels"]],clust.df, by="label")
+rect <- aggregate(x~cluster,label(dendr),range)
+rect <- data.frame(rect$cluster,rect$x)
+ymax <- mean(hca$height[length(hca$height)-((k-2):(k-1))])
+
+plot_hclust = ggplot() + 
+    geom_segment(data=segment(dendr), aes(x=x, y=y, xend=xend, yend=yend)) + 
+    geom_text(data=label(dendr),
+              aes(x, y, label=label, hjust=0, color=cluster),
+              size=3) + 
+    theme_dendro() +
+    theme(legend.position="none")
+
+
+df     <- data.frame(iris)                   # iris dataset
+pca    <- prcomp(df[,1:4], retx=T, scale.=T) # scaled pca [exclude species col]
+scores <- pca$x[,1:3]                        # scores for first three PC's
+
+# k-means clustering [assume 3 clusters]
+km     <- kmeans(scores, centers=3, nstart=5)
+ggdata <- data.frame(scores, Cluster=km$cluster, Species=df$Species)
+
+
+plot_kmeans = ggplot(ggdata) +
+    geom_point(aes(x=PC1, y=PC2, color=factor(Cluster)), size=2) +
+    guides(color=guide_legend("Cluster"),fill=guide_legend("Cluster")) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+plot_regr <- ggplot(mtcars, aes(qsec, wt, col = as.factor(mtcars$am))) + stat_smooth() + geom_point() +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position="none")
+
+
+
+suppressWarnings(library(gridExtra))
+grid.arrange(plot_kmeans, plot_hclust, plot_regr, ncol = 3)
+
+```
+
+* Presentation
+
+<img src="html.png" height="60px" /> 
+<img src="shiny.png" height="60px" /> 
+<img src="pdf.png" height="60px" /> 
+<img src="word.png" height="60px" />
+
+Retrieving and formatting data
+========================================================
+
+* Relational databases (<span style="color:steelblue">_ROracle_</span>, <span style="color:steelblue">_RMySQL_</span>, <span style="color:steelblue">_RSQLite_</span>, <span style="color:steelblue">_RPostgreSQL_</span>)
+* Document databases (<span style="color:steelblue">_rmongodb_</span>, <span style="color:steelblue">_RMongo_</span>)
+* Graph databases (<span style="color:steelblue">_RNeo4j_</span>)
+* Key-value databases (<span style="color:steelblue">_rredis_</span>)
+* Column databases (<span style="color:steelblue">_RCassandra_</span>, <span style="color:steelblue">_rhbase_</span>)
+* &rarr; data.frame (<span style="color:steelblue">_plyr_</span>, <span style="color:steelblue">_tidyr_</span>, <span style="color:steelblue">_reshape2_</span>, <span style="color:steelblue">_lubridate_</span>)
+* &rarr; graph.data.frame (<span style="color:steelblue">_igraph_</span>), network (<span style="color:steelblue">_sna_</span>)
+
+```{r, echo=FALSE, message=FALSE}
+suppressWarnings(library(igraph))
+actors <- data.frame(name=c("Alice", "Bob", "Cecil"),
+                     age=c(48,33,45))
+relations <- data.frame(from=c("Bob", "Cecil"),
+                        to=c("Alice", "Bob"))
+graph.data.frame(relations, directed=TRUE, vertices=actors)
+```
+
+Data analysis
+========================================================
+
+* Leading language in scientific community &rarr; large number of packages that supply algorithms coming from various scientific domains 
+* Machine learning: <span style="color:steelblue">_stats_</span>, <span style="color:steelblue">_caret_</span> (outlier detection, model fitting, clustering)
+* Linguistics: <span style="color:steelblue">_lda_</span> (topic modelling), <span style="color:steelblue">_NLP_</span>, <span style="color:steelblue">_openNLP_</span>
+* Networks (graphs): <span style="color:steelblue">_sna_</span> (neighborhoods, shortest paths, etc.)
+
+```{r, echo=FALSE, message=FALSE, fig.width=16,fig.height=4}
+library(HDclassif)
+data(wine)
+wine = wine[c(1,2,7,8,12)]
+wine$class = as.factor(wine$class)
+names(wine) = c("Grape_variety", "Alcohol", "Phenols", "Flavanoids", "Hue")
+
+library(caret)
+inTrain = createDataPartition(y=wine$Grape_variety, p=0.7, list=FALSE)
+training = wine[inTrain,]
+testing = wine[-inTrain,]
+
+preProc = preProcess(training[-1], method = "pca", pcaComp = 2)
+
+trainPC = predict(preProc, training[-1])
+
+library(mclust)
+model1 = Mclust(trainPC, 3)
+
+trainPred = factor((predict(model1, trainPC)$classification))
+names(trainPred)=NULL
+levels(trainPred) = levels(training$Grape_variety)
+
+testPC = predict(preProc, testing[-1])
+testPred = factor((predict(model1, testPC)$classification))
+names(testPred)=NULL
+levels(testPred) = levels(testing$Grape_variety)
+
+model2 = train(trainPC, training$Grape_variety, method = 'knn')
+
+cols = c("#F8766D", "#00BA38", "#619CFF")
+err_gmm = testing$Grape_variety==testPred
+err_gmm = as.factor(err_gmm)
+levels(err_gmm) = c("red3","black")
+data_gmm = cbind(testing, "Pred" = testPred, "Err" = err_gmm)
+levels(data_gmm$Pred) = cols
+gmm = ggplot(data=data_gmm, aes(x=Alcohol, y=Hue, shape=Grape_variety)) + geom_point(color=data_gmm$Err, size=5) +  geom_point(color=data_gmm$Pred, size=4) + theme(legend.position="none") + ggtitle("GMM")
+
+err_knn = testing$Grape_variety==predict(model2, testPC)
+err_knn = as.factor(err_knn)
+levels(err_knn) = c("red3","black")
+data_knn = cbind(testing, "Pred" = predict(model2, testPC), "Err" = err_knn)
+levels(data_knn$Pred) = cols
+knn = ggplot(data=data_knn, aes(x=Alcohol, y=Hue, shape=Grape_variety)) + geom_point(color=data_knn$Err, size=5) +  geom_point(color=data_knn$Pred, size=4) + theme(legend.position="none") + ggtitle("kNN")
+
+library(gridExtra)
+library(grid)
+grid.arrange(gmm, knn, ncol=2)
+```
+
+Visualization and analysis delivery
+========================================================
+
+* <span style="color:steelblue">_ggplot2_</span> - one of the best static visualization packages in R
+* <span style="color:steelblue">_rCharts_</span> - adds interactivity to ggplots
+* <span style="color:steelblue">_venneuler_</span>, <span style="color:steelblue">_VennDiagram_</span> - venn diagrams
+* <span style="color:steelblue">_shiny_</span> - embed interactive components in reports to manipulate plotted data or implement shareable applications (such as [Logging Statistics](https://ircus.shinyapps.io/loggingStats/))
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.width=16,fig.height=6}
+library(ggplot2)
+data("diamonds")
+set.seed(100)
+diamonds = diamonds[sample(nrow(diamonds), 1000), ]
+#library(plotly)
+
+p = ggplot(aes(x=carat, y=price), data=diamonds) + geom_point(aes(color=clarity, shape = cut), alpha=0.8) + scale_color_brewer(type='qual') + geom_smooth(formula = y ~ exp(x), method = lm, se = FALSE) + coord_cartesian(ylim = c(min(diamonds$price), max(diamonds$price))) + ggtitle("Diamond data visualization")
+p
+```
